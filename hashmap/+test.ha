@@ -39,4 +39,6 @@ use types;
   for (let i: size = 0; i < initial_capacity*2; i += 1) {
     put(&hashmap, strings::toutf8(ztos(i)), i)!;
   };
+
+  print_values(&hashmap)!;
 };

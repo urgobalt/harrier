@@ -5,6 +5,7 @@ use hash;
 use crypto::random;
 use bytes;
 use fmt;
+use time;
 
 export type value = (...types::numeric | uintptr | str | rune | bool | *opaque);
 export type kv = struct {
@@ -16,14 +17,12 @@ export type hashmap = struct {
   secondary_content: [](void|kv),
   count: size,
   capacity: size,
+  primary_hashkey: [16]u8,
+  secondary_hashkey: [16]u8,
 };
 
 export const initial_capacity: size = 32;
 export const max_depth: size = 8;
-
-// FIXME: These can't be global...
-export let h1: [16]u8 = [0...];
-export let h2: [16]u8 = [0...];
 
 export fn assert_valid_hashmap(hashmap: *hashmap) void = {
   // INFO: Assert capacity is a power of 2
@@ -45,15 +44,19 @@ export fn init() (hashmap|nomem) = {
   // INFO: Assert initial_capacity is a power of 2
   assert((initial_capacity & (initial_capacity - 1)) == 0);
 
-  init_hash(&h1);
-  init_hash(&h2);
-
-  return hashmap {
+  const hashmap = hashmap {
     primary_content = alloc([void...], initial_capacity)?,
     secondary_content = alloc([void...], initial_capacity)?,
     count = 0,
     capacity = initial_capacity,
+    primary_hashkey: [16]u8 = [0...],
+    secondary_hashkey: [16]u8 = [0...],
   };
+
+  init_hash(&hashmap.primary_hashkey);
+  init_hash(&hashmap.secondary_hashkey);
+
+  return hashmap;
 };
 
 export fn deinit(hashmap: *hashmap) void = {
@@ -63,11 +66,11 @@ export fn deinit(hashmap: *hashmap) void = {
 
 export fn get(hashmap: *hashmap, key: []u8) (void|*value) = {
   assert_valid_hashmap(hashmap);
-  const index = hash(&h1, key) & (hashmap.capacity - 1);
+  const index = hash(&hashmap.primary_hashkey, key) & (hashmap.capacity - 1);
   if (hashmap.primary_content[index] is kv && bytes::equal((hashmap.primary_content[index] as kv).key, key))
     return &(hashmap.primary_content[index] as kv).value;
 
-  const index = hash(&h2, key) & (hashmap.capacity - 1);
+  const index = hash(&hashmap.secondary_hashkey, key) & (hashmap.capacity - 1);
   if (hashmap.secondary_content[index] is kv && bytes::equal((hashmap.secondary_content[index] as kv).key, key))
     return &(hashmap.secondary_content[index] as kv).value;
   return void;
@@ -76,7 +79,6 @@ export fn get(hashmap: *hashmap, key: []u8) (void|*value) = {
 export fn put(hashmap: *hashmap, key: []u8, _value: value) (void|nomem) = {
   assert_valid_hashmap(hashmap);
 
-  fmt::printf("count: {}\n", hashmap.count)!;
   if (hashmap.count*2 >= hashmap.capacity)
     realloc(hashmap, hashmap.capacity*2)?;
 
@@ -97,7 +99,16 @@ export fn put(hashmap: *hashmap, key: []u8, _value: value) (void|nomem) = {
 // This means that the key may cause infinite collisions.
 export fn unsafe_put(hashmap: *hashmap, item: kv) (void|nomem) = {
   for (let i = 0z; i < max_depth; i += 1) {
-    const index = hash(&h1, item.key) & (hashmap.capacity - 1);
+
+    // BUG: The following match+print statement somehow fixes some bug in the
+    // type checking for void or whatever.
+    match (item.value) {
+    case let pointer: *opaque => fmt::printf("{}, ", pointer)!;
+    case let string: str => fmt::printf("\"{}\", ", string)!;
+    case let other: (...types::numeric | uintptr | str | rune | bool) => fmt::printf("{}, ", other)!;
+    };
+
+    const index = hash(&hashmap.primary_hashkey, item.key) & (hashmap.capacity - 1);
     if (hashmap.primary_content[index] is void) {
       hashmap.primary_content[index] = item;
       hashmap.count += 1;
@@ -108,7 +119,7 @@ export fn unsafe_put(hashmap: *hashmap, item: kv) (void|nomem) = {
     hashmap.primary_content[index] = item;
     item = temp;
 
-    const index = hash(&h2, item.key) & (hashmap.capacity - 1);
+    const index = hash(&hashmap.secondary_hashkey, item.key) & (hashmap.capacity - 1);
     if (hashmap.secondary_content[index] is void) {
       hashmap.secondary_content[index] = item;
       hashmap.count += 1;
@@ -119,18 +130,14 @@ export fn unsafe_put(hashmap: *hashmap, item: kv) (void|nomem) = {
     hashmap.secondary_content[index] = item;
     item = temp;
   };
-  rehash_count += 1;
-  fmt::printf("rehash_count: {}\n", rehash_count)!;
   rehash(hashmap)?;
   unsafe_put(hashmap, item)?;
 };
 
-let rehash_count = 0z;
-
 export fn pop(hashmap: *hashmap, key: []u8) (value|void) = {
   assert_valid_hashmap(hashmap);
 
-  const index = hash(&h1, key) & (hashmap.capacity - 1);
+  const index = hash(&hashmap.primary_hashkey, key) & (hashmap.capacity - 1);
   if (hashmap.primary_content[index] is kv && bytes::equal((hashmap.primary_content[index] as kv).key, key)) {
     const v = (hashmap.primary_content[index] as kv).value;
     hashmap.primary_content[index] = void;
@@ -138,7 +145,7 @@ export fn pop(hashmap: *hashmap, key: []u8) (value|void) = {
     return v;
   };
 
-  const index = hash(&h2, key) & (hashmap.capacity - 1);
+  const index = hash(&hashmap.secondary_hashkey, key) & (hashmap.capacity - 1);
   if (hashmap.secondary_content[index] is kv && bytes::equal((hashmap.secondary_content[index] as kv).key, key)){
 
     const v = (hashmap.secondary_content[index] as kv).value;
@@ -151,8 +158,8 @@ export fn pop(hashmap: *hashmap, key: []u8) (value|void) = {
 
 // BUG: Infinite recursion stuff when the function rehashes. Don't know why.
 fn rehash(hashmap: *hashmap) (void|nomem) = {
-  init_hash(&h1);
-  init_hash(&h2);
+  init_hash(&hashmap.primary_hashkey);
+  init_hash(&hashmap.secondary_hashkey);
 
   realloc(hashmap, hashmap.capacity)?;
 };
@@ -180,16 +187,14 @@ fn realloc(hashmap: *hashmap, capacity: size) (void|nomem) = {
     if (item is void)
       continue;
 
-    const item = item: kv;
-    unsafe_put(hashmap, item)?;
+    unsafe_put(hashmap, item: kv)?;
   };
 
   for (let item .. secondary_content) {
     if (item is void)
       continue;
 
-    const item = item: kv;
-    unsafe_put(hashmap, item)?;
+    unsafe_put(hashmap, item: kv)?;
   };
 
   free(primary_content);
