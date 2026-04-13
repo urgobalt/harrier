@@ -1,0 +1,83 @@
+{
+  "nodes": {
+    "devenv": {
+      "locked": {
+        "dir": "src/modules",
+        "lastModified": 1775988578,
+        "narHash": "sha256-Q//+0kMbTEjKbyFUYC5VpvoSnT8Q7FCxWvWDGvZzNMI=",
+        "owner": "cachix",
+        "repo": "devenv",
+        "rev": "be5f6f4b596f4b07f5b60db53dcae795cea50751",
+        "type": "github"
+      },
+      "original": {
+        "dir": "src/modules",
+        "owner": "cachix",
+        "repo": "devenv",
+        "type": "github"
+      }
+    },
+    "hare-lsp": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1774892806,
+        "narHash": "sha256-ulXwU1Ue1uyIvONWSPL1gEqB0o9Pn5SOD+pyWgky8TU=",
+        "owner": "~whynothugo",
+        "repo": "hare-lsp",
+        "rev": "6c88562a27880f81102b30223b654d50041dd745",
+        "type": "sourcehut"
+      },
+      "original": {
+        "owner": "~whynothugo",
+        "ref": "main",
+        "repo": "hare-lsp",
+        "type": "sourcehut"
+      }
+    },
+    "nixpkgs": {
+      "inputs": {
+        "nixpkgs-src": "nixpkgs-src"
+      },
+      "locked": {
+        "lastModified": 1774287239,
+        "narHash": "sha256-W3krsWcDwYuA3gPWsFA24YAXxOFUL6iIlT6IknAoNSE=",
+        "owner": "cachix",
+        "repo": "devenv-nixpkgs",
+        "rev": "fa7125ea7f1ae5430010a6e071f68375a39bd24c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "cachix",
+        "ref": "rolling",
+        "repo": "devenv-nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1773840656,
+        "narHash": "sha256-9tpvMGFteZnd3gRQZFlRCohVpqooygFuy9yjuyRL2C0=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "9cf7092bdd603554bd8b63c216e8943cf9b12512",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "devenv": "devenv",
+        "hare-lsp": "hare-lsp",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
